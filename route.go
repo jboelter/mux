@@ -491,6 +491,7 @@ func (r *Route) URLPath(pairs ...string) (*url.URL, error) {
 type parentRoute interface {
 	getNamedRoutes() map[string]*Route
 	getRegexpGroup() *routeRegexpGroup
+	buildFilteredHandler(handler http.Handler) http.Handler
 }
 
 // getNamedRoutes returns the map where named routes are registered.
@@ -522,4 +523,11 @@ func (r *Route) getRegexpGroup() *routeRegexpGroup {
 		}
 	}
 	return r.regexp
+}
+
+func (r *Route) buildFilteredHandler(handler http.Handler) http.Handler {
+	if r.parent != nil {
+		return r.parent.buildFilteredHandler(handler)
+	}
+	return handler
 }

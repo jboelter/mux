@@ -48,6 +48,8 @@ type Router struct {
 	strictSlash bool
 	// If true, do not clear the request context after handling the request
 	KeepContext bool
+	// Filters to be executed, in order.
+	filters []Filter
 }
 
 // Match matches registered routes against the request.
@@ -81,9 +83,11 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	}
 	var match RouteMatch
 	var handler http.Handler
+	var route *Route
 	if r.Match(req, &match) {
 		handler = match.Handler
 		setVars(req, match.Vars)
+		route = match.Route
 		setCurrentRoute(req, match.Route)
 	}
 	if handler == nil {
@@ -95,6 +99,12 @@ func (r *Router) ServeHTTP(w http.ResponseWriter, req *http.Request) {
 	if !r.KeepContext {
 		defer context.Clear(req)
 	}
+	if route != nil && route.parent != nil {
+		handler = route.parent.buildFilteredHandler(handler)
+	} else {
+		handler = r.buildFilteredHandler(handler)
+	}
+
 	handler.ServeHTTP(w, req)
 }
 
@@ -222,6 +232,28 @@ func (r *Router) Queries(pairs ...string) *Route {
 // See Route.Schemes().
 func (r *Router) Schemes(schemes ...string) *Route {
 	return r.NewRoute().Schemes(schemes...)
+}
+
+// ----------------------------------------------------------------------------
+// Filters
+// ----------------------------------------------------------------------------
+
+type Filter func(http.Handler) http.Handler
+
+func (r *Router) AddFilters(filters ...Filter) {
+	r.filters = append(r.filters, filters...)
+}
+
+func (r *Router) buildFilteredHandler(handler http.Handler) http.Handler {
+	for i := len(r.filters) - 1; i >= 0; i-- {
+		handler = r.filters[i](handler)
+	}
+
+	if r.parent != nil {
+		handler = r.parent.buildFilteredHandler(handler)
+	}
+
+	return handler
 }
 
 // ----------------------------------------------------------------------------
