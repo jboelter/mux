@@ -238,8 +238,10 @@ func (r *Router) Schemes(schemes ...string) *Route {
 // Filters
 // ----------------------------------------------------------------------------
 
+// Filter stores a filter to be applied
 type Filter func(http.Handler) http.Handler
 
+// AddFilters registers new filters to a Router
 func (r *Router) AddFilters(filters ...Filter) {
 	r.filters = append(r.filters, filters...)
 }
